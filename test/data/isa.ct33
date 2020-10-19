@@ -1,0 +1,15 @@
+ADD x1, x1, x1
+
+SUB x1, x1, x1
+SUB x1, x1, 0
+
+LSH x1, x1, 0
+RSH x1, x1, 0
+
+BRZ x1, 0
+BGT x1, 0
+
+LD x1, 0
+ST x1, 0
+
+HTL

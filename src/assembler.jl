@@ -107,15 +107,6 @@ function readfile(fn::Function, outs::IO, infile::AbstractString; kwargs...)
     close(ins)
 end
 
-# function readstring(fn::Function, infile::AbstractString)
-#     ins  = open(infile)
-#     outs = IOBuffer()
-#     fn(ins, outs)
-#     close(ins)
-#     seekstart(outs)
-#     read(outs, String)
-# end
-
 function assemble(out, infile::AbstractString; kwargs...)
     readfile(assemble, out, infile; kwargs...)
 end
@@ -124,13 +115,6 @@ function disassemble(out, infile::AbstractString; kwargs...)
     readfile(disassemble, out, infile; kwargs...)
 end
 
-# function assemble_string(infile::AbstractString)
-#     readstring(assemble, infile)
-# end
-#
-# function disassemble_string(infile::AbstractString)
-#     readstring(assemble, infile)
-# end
 
 """
 Split up a line like:
@@ -227,11 +211,11 @@ function disassemble(codebuf::IO, io::IO; verbose=false)
         print(codebuf, lpad(i-1, 2, '0'), ": ")
         
         if opcode == HLT
-            println(codebuf, "DAT $line")
+            println(codebuf, "HLT")
             continue
         end
         
-        print(codebuf, rpad(mnemonics[numeric], 4), "x$(line[2])")
+        print(codebuf, rpad(mnemonics[numeric], 5), "x$(line[2])")
 
         if opcode in (BRZ, BGT, LD, ST)
             print(codebuf, ", ", line[3:4])

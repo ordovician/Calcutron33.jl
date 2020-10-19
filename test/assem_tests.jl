@@ -21,4 +21,12 @@ datadir = joinpath(dirname(@__FILE__), "data")
             @test sprint(assemble, src) == expected
         end
     end
+    
+    @testset "Roundtrip" begin
+        machinecode = IOBuffer()
+        filepath = joinpath(datadir, "roundtrip.ct33")
+        assemble(machinecode, filepath)
+        seekstart(machinecode)
+        @test read(filepath, String) == sprint(disassemble, machinecode)
+    end    
 end

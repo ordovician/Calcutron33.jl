@@ -1,15 +1,27 @@
-ADD x1, x1, x1
+instructions:
+    ADD  x9, x8, x7
 
-SUB x1, x1, x1
-SUB x1, x1, 0
+    SUB  x9, x8, x7
+    SUBI x9, x8, 7
 
-LSH x1, x1, 0
-RSH x1, x1, 0
+    LSH  x9, x8, 7
+    RSH  x9, x8, 7
 
-BRZ x1, 0
-BGT x1, 0
+    BRZ  x9, pseudo
+    BGT  x9, pseudo
 
-LD x1, 0
-ST x1, 0
+    LD x9, data
+    ST x9, data
 
-HTL
+    HLT
+
+pseudo:
+    INP x9
+    OUT x9
+    MOV x9, x8
+    CLR x9
+    DEC x9
+    BRA pseudo
+    
+data:
+    DAT 9876

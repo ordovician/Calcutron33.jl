@@ -89,70 +89,124 @@ function writeoperands(io::IO, labels::Dict, rd, src)
     end 
 end
 
-assemble(filename::AbstractString) = open(assemble, filename)
-
-function assemble(infile::AbstractString, outfile::AbstractString)
-    ins  = open(infile)
-    outs = open(outfile, "w")
-    assemble(ins, outs)
-    close(ins)
-    close(outs)
+function assemble(filename::AbstractString; kwargs...)
+    open(filename) do io
+        assemble(io; kwargs...)
+    end
 end
 
-function assemble(io::IO, codebuf::IO = stdout)
+function readfile(fn::Function, outfile::AbstractString, infile::AbstractString; kwargs...)
+    outs = open(outfile, "w")
+    readfile(fn, outs, infile; kwargs...)
+    close(outs)    
+end
+
+function readfile(fn::Function, outs::IO, infile::AbstractString; kwargs...)
+    ins  = open(infile)
+    fn(outs, ins; kwargs...)
+    close(ins)
+end
+
+# function readstring(fn::Function, infile::AbstractString)
+#     ins  = open(infile)
+#     outs = IOBuffer()
+#     fn(ins, outs)
+#     close(ins)
+#     seekstart(outs)
+#     read(outs, String)
+# end
+
+function assemble(out, infile::AbstractString; kwargs...)
+    readfile(assemble, out, infile; kwargs...)
+end
+
+function disassemble(out, infile::AbstractString; kwargs...)
+    readfile(disassemble, out, infile; kwargs...)
+end
+
+# function assemble_string(infile::AbstractString)
+#     readstring(assemble, infile)
+# end
+#
+# function disassemble_string(infile::AbstractString)
+#     readstring(assemble, infile)
+# end
+
+"""
+Split up a line like:
+
+    loop: ADD x1, x1 # doubling value
+    
+Into an array of all significant parts:
+
+    ["ADD", "x1", "x1"]
+
+We remove the label because you will not need it here.
+"""
+function splitup_code_line(line::AbstractString)
+    codeline = split(line, in("#;/")) |> first |> strip
+    words = split(codeline, in(" ,"), keepempty=false)
+    
+    if !isempty(words) && endswith(words[1], ':')
+        words[2:end]
+    else
+        words    
+    end   
+end
+
+
+function assemble(codebuf::IO, io::IO; verbose=false)
     mark(io) # remember position in stream
     labels = readsymtable(io)
     reset(io) # Get back to mark, so we can read file over again
     
     for line in eachline(io)
-        codeline = split(line, in("#;/")) |> first |> strip
-        words = split(codeline, in(" ,"), keepempty=false)
+        words = splitup_code_line(line)
         
         if isempty(words)
             continue
         end
-        
-        # Do we have a label?
-        if endswith(words[1], ':')
-            popfirst!(words)
-            if isempty(words)
-                continue
-            end
-        end
-        
-        if uppercase(words[1]) == "DAT"
-            push!(memory, parse(Int, words[1]))
-            continue
-        end
-        
-        # Finally regular assembly to deal with
+                        
         mnemonic = uppercase(words[1])
-        operands = words[2:end]
-        rd = operands[1]
         
-        machinecode = to_machinecode(mnemonic)
-        if machinecode != nothing
-            print(codebuf, machinecode)
-            writeoperands(codebuf, labels, operands...)
-        elseif "INP" == mnemonic
-            print(codebuf, to_machinecode("LD"))
-            print(codebuf, regnames[rd], "90")
-        elseif "OUT" == mnemonic
-            print(codebuf, to_machinecode("ST"))
-            print(codebuf, regnames[rd], "91")
-        elseif "MOV" == mnemonic
-            print(codebuf, to_machinecode("ADD"))
-            print(codebuf, regnames[rd], "0", regnames[operands[2]])
-        elseif "CLR" == mnemonic
-            print(codebuf, to_machinecode("ADD"))
-            print(codebuf, regnames[rd], "00")
-        elseif "DEC" == mnemonic
-            print(codebuf, to_machinecode("SUB"))
-            print(codebuf, regnames[rd], regnames[rd], '1')
-        elseif "BRA" == mnemonic
-            print(codebuf, to_machinecode("BRZ"))
-            print(codebuf, '0', to_address(operands[1], labels))
+        if mnemonic == "DAT"
+            print(codebuf, lpad(words[2], 4, '0'))
+        elseif mnemonic == "HLT"
+            print(codebuf, "0000")
+        else
+            # Finally regular assembly to deal with
+            operands = words[2:end]
+            rd = operands[1]
+        
+            machinecode = to_machinecode(mnemonic)
+            if machinecode != nothing
+                print(codebuf, machinecode)
+                writeoperands(codebuf, labels, operands...)
+                
+            # Pseudo instructions
+            elseif "INP" == mnemonic
+                print(codebuf, to_machinecode("LD"))
+                print(codebuf, regnames[rd], "90")
+            elseif "OUT" == mnemonic
+                print(codebuf, to_machinecode("ST"))
+                print(codebuf, regnames[rd], "91")
+            elseif "MOV" == mnemonic
+                print(codebuf, to_machinecode("ADD"))
+                print(codebuf, regnames[rd], "0", regnames[operands[2]])
+            elseif "CLR" == mnemonic
+                print(codebuf, to_machinecode("ADD"))
+                print(codebuf, regnames[rd], "00")
+            elseif "DEC" == mnemonic
+                print(codebuf, to_machinecode("SUB"))
+                print(codebuf, regnames[rd], regnames[rd], '1')
+            elseif "BRA" == mnemonic
+                print(codebuf, to_machinecode("BRZ"))
+                print(codebuf, '0', to_address(operands[1], labels))
+            end            
         end
+        
+       
+        verbose && print(codebuf, ": ", strip(line))
         
         println(codebuf)
     end
@@ -160,20 +214,12 @@ function assemble(io::IO, codebuf::IO = stdout)
     nothing
 end
 
-disassemble(filename::AbstractString) = open(disassemble, filename)
+assemble(io::IO; kwargs...) = assemble(stdout, io; kwargs...)
 
+disassemble(filename::AbstractString; kwargs...) = open(disassemble, filename)
+disassemble(;kwargs...) = disassemble(stdout, IOBuffer(clipboard()))
 
-function disassemble(infile::AbstractString, outfile::AbstractString)
-    ins  = open(infile)
-    outs = open(outfile, "w")
-    disassemble(ins, outs)
-    close(ins)
-    close(outs)
-end
-
-disassemble() = disassemble(IOBuffer(clipboard()))
-
-function disassemble(io::IO, codebuf::IO = stdout)
+function disassemble(codebuf::IO, io::IO; verbose=false)
     for (i, rawline) in enumerate(eachline(io))
         line = strip(rawline)
         numeric = parse(Int, line[1])
@@ -198,3 +244,5 @@ function disassemble(io::IO, codebuf::IO = stdout)
         println(codebuf)
     end
 end
+
+disassemble(io::IO; kwargs...) = disassemble(stdout, io; kwargs...)
